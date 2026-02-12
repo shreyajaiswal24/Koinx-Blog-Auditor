@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: koinx-tax-auditor
+    runtime: python
+    buildCommand: |
+      pip install -r requirements.txt &&
+      cd frontend && npm install && npm run build
+    startCommand: python3 run_server.py
+    envVars:
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: RENDER
+        value: "true"

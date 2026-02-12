@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+*.db
+output/*.xlsx
+.venv/
+auditor.log
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
