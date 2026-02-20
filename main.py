@@ -49,7 +49,6 @@ def run_audit(post_id=None):
 
     if not findings:
         logger.info("No findings detected. Audit complete.")
-        db.close()
         return
 
     # Track changes
@@ -80,8 +79,6 @@ def run_audit(post_id=None):
     logger.info(f"Report saved: {report_path}")
     logger.info(f"API usage: {api_stats}")
     logger.info("=" * 60)
-
-    db.close()
 
 
 def run_scheduler():

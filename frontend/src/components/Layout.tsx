@@ -1,13 +1,23 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { clearToken, clearStoredUser, getStoredUser } from '../api/client';
 
 const links = [
   { to: '/', label: 'Dashboard' },
   { to: '/findings', label: 'Findings' },
   { to: '/live', label: 'Live Audit' },
-  { to: '/runs', label: 'Run History' },
+  { to: '/audits', label: 'Audits' },
 ];
 
 export default function Layout() {
+  const navigate = useNavigate();
+  const user = getStoredUser();
+
+  const handleLogout = () => {
+    clearToken();
+    clearStoredUser();
+    navigate('/login');
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
@@ -33,6 +43,19 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+
+        {/* User info + Logout */}
+        <div className="border-t border-gray-700 px-5 py-4">
+          {user && (
+            <div className="text-sm text-gray-400 mb-2 truncate">{user.name}</div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            Sign Out
+          </button>
+        </div>
       </aside>
 
       {/* Main */}

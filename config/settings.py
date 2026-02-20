@@ -6,8 +6,11 @@ load_dotenv()
 
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent
-DB_PATH = PROJECT_ROOT / "storage" / "auditor.db"
 OUTPUT_DIR = PROJECT_ROOT / "output"
+
+# MongoDB
+MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "koinx_tax_auditor")
 
 # Mistral AI
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")

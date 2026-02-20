@@ -44,7 +44,6 @@ def _run_scheduled_audit():
         report_path = excel_gen.generate(classified, run_stats, tax_refs)
 
         logger.info(f"=== Scheduled audit complete. Report: {report_path} ===")
-        db.close()
     except Exception as e:
         logger.error(f"Scheduled audit failed: {e}", exc_info=True)
 

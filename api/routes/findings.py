@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query
 
-from storage.database import Database
+from storage.database import get_db
 from api.schemas import FindingOut, PaginatedFindings
 
 router = APIRouter(prefix="/api", tags=["findings"])
@@ -19,59 +19,55 @@ def get_findings(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
-    db = Database()
-    try:
-        where_clauses = []
-        params = []
+    db = get_db()
 
-        if priority:
-            where_clauses.append("priority = ?")
-            params.append(priority)
-        if status:
-            where_clauses.append("status = ?")
-            params.append(status)
-        if issue_type:
-            where_clauses.append("issue_type = ?")
-            params.append(issue_type)
+    # Build filter
+    query = {}
+    if priority:
+        query["priority"] = priority
+    if status:
+        query["status"] = status
+    if issue_type:
+        query["issue_type"] = issue_type
 
-        where_sql = ""
-        if where_clauses:
-            where_sql = "WHERE " + " AND ".join(where_clauses)
+    # Count total
+    total = db.audit_findings.count_documents(query)
 
-        # Count total
-        count_row = db.execute(
-            f"SELECT COUNT(*) FROM audit_findings {where_sql}", params
-        ).fetchone()
-        total = count_row[0]
+    # Fetch page
+    skip = (page - 1) * per_page
+    docs = (
+        db.audit_findings
+        .find(query)
+        .sort("id", -1)
+        .skip(skip)
+        .limit(per_page)
+    )
 
-        # Fetch page
-        offset = (page - 1) * per_page
-        rows = db.execute(
-            f"SELECT id, run_id, blog_url, blog_title, section_heading, exact_quote, "
-            f"issue_type, description, suggested_update, source, llm_confidence, "
-            f"confidence, priority, status, finding_hash "
-            f"FROM audit_findings {where_sql} "
-            f"ORDER BY id DESC LIMIT ? OFFSET ?",
-            params + [per_page, offset],
-        ).fetchall()
-
-        items = [
-            FindingOut(
-                id=r[0], run_id=r[1], blog_url=r[2], blog_title=r[3],
-                section_heading=r[4], exact_quote=r[5], issue_type=r[6],
-                description=r[7], suggested_update=r[8], source=r[9],
-                llm_confidence=r[10], confidence=r[11], priority=r[12],
-                status=r[13], finding_hash=r[14],
-            )
-            for r in rows
-        ]
-
-        return PaginatedFindings(
-            items=items,
-            total=total,
-            page=page,
-            per_page=per_page,
-            pages=max(1, math.ceil(total / per_page)),
+    items = [
+        FindingOut(
+            id=d["id"],
+            run_id=d["run_id"],
+            blog_url=d["blog_url"],
+            blog_title=d["blog_title"],
+            section_heading=d.get("section_heading", ""),
+            exact_quote=d["exact_quote"],
+            issue_type=d["issue_type"],
+            description=d["description"],
+            suggested_update=d["suggested_update"],
+            source=d["source"],
+            llm_confidence=d.get("llm_confidence", 0),
+            confidence=d["confidence"],
+            priority=d["priority"],
+            status=d["status"],
+            finding_hash=d["finding_hash"],
         )
-    finally:
-        db.close()
+        for d in docs
+    ]
+
+    return PaginatedFindings(
+        items=items,
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=max(1, math.ceil(total / per_page)),
+    )

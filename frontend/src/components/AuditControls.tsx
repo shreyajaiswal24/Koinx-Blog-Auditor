@@ -1,36 +1,21 @@
-import { useState } from 'react';
-import { startAudit, getReportDownloadUrl } from '../api/client';
+import { getReportDownloadUrl } from '../api/client';
+import { useNavigate } from 'react-router-dom';
 
 interface Props {
   isRunning: boolean;
-  onStarted: () => void;
 }
 
-export default function AuditControls({ isRunning, onStarted }: Props) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleStart = async (postId?: number) => {
-    setLoading(true);
-    setError('');
-    try {
-      await startAudit(postId);
-      onStarted();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to start audit');
-    } finally {
-      setLoading(false);
-    }
-  };
+export default function AuditControls({ isRunning }: Props) {
+  const navigate = useNavigate();
 
   return (
     <div className="flex flex-wrap items-center gap-3">
       <button
-        onClick={() => handleStart()}
-        disabled={isRunning || loading}
+        onClick={() => navigate('/audits')}
+        disabled={isRunning}
         className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isRunning ? 'Audit Running...' : 'Run Full Audit'}
+        {isRunning ? 'Audit Running...' : 'Start New Audit'}
       </button>
 
       <a
@@ -40,8 +25,6 @@ export default function AuditControls({ isRunning, onStarted }: Props) {
       >
         Download Excel
       </a>
-
-      {error && <span className="text-red-600 text-sm">{error}</span>}
     </div>
   );
 }

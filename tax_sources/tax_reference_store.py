@@ -1,6 +1,5 @@
-"""Aggregate and cache tax law references in SQLite."""
+"""Aggregate and cache tax law references in MongoDB."""
 
-import json
 import logging
 import time
 from typing import List, Dict, Optional
@@ -15,7 +14,7 @@ class TaxReferenceStore:
     """Manages tax law reference corpus with caching."""
 
     def __init__(self, db):
-        """Initialize with a database connection wrapper.
+        """Initialize with a Database instance.
 
         Args:
             db: storage.database.Database instance
@@ -62,33 +61,35 @@ class TaxReferenceStore:
         return "\n".join(parts)
 
     def _load_from_db(self) -> Optional[List[Dict[str, str]]]:
-        """Load cached references from SQLite if they exist and are fresh."""
-        rows = self.db.execute(
-            "SELECT topic, content, source, url, fetched_at FROM tax_references"
-        ).fetchall()
-        if not rows:
+        """Load cached references from MongoDB if they exist and are fresh."""
+        docs = list(self.db.tax_references.find())
+        if not docs:
             return None
 
         # Check freshness of the newest entry
-        newest = max(r[4] for r in rows)
+        newest = max(d.get("fetched_at", 0) for d in docs)
         if (time.time() - newest) > TAX_REFERENCE_TTL:
             logger.info("DB tax references cache expired")
             return None
 
         return [
-            {"topic": r[0], "content": r[1], "source": r[2], "url": r[3]}
-            for r in rows
+            {"topic": d["topic"], "content": d["content"], "source": d["source"], "url": d.get("url", "")}
+            for d in docs
         ]
 
     def _save_to_db(self, references: List[Dict[str, str]]):
-        """Save references to SQLite cache."""
+        """Save references to MongoDB cache."""
         now = time.time()
-        self.db.execute("DELETE FROM tax_references")
-        for ref in references:
-            self.db.execute(
-                "INSERT INTO tax_references (topic, content, source, url, fetched_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (ref["topic"], ref["content"], ref["source"], ref.get("url", ""), now),
-            )
-        self.db.commit()
+        self.db.tax_references.delete_many({})
+        if references:
+            self.db.tax_references.insert_many([
+                {
+                    "topic": ref["topic"],
+                    "content": ref["content"],
+                    "source": ref["source"],
+                    "url": ref.get("url", ""),
+                    "fetched_at": now,
+                }
+                for ref in references
+            ])
         logger.info(f"Cached {len(references)} tax references to DB")

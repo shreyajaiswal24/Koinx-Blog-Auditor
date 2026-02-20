@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from storage.database import Database
+from storage.database import get_db
 from api.schemas import StatsResponse, RunOut
 
 router = APIRouter(prefix="/api", tags=["stats"])
@@ -10,50 +10,39 @@ router = APIRouter(prefix="/api", tags=["stats"])
 
 @router.get("/stats", response_model=StatsResponse)
 def get_stats():
-    db = Database()
-    try:
-        # Finding counts by priority (latest run only for active findings)
-        total = db.execute("SELECT COUNT(*) FROM audit_findings").fetchone()[0]
-        high = db.execute(
-            "SELECT COUNT(*) FROM audit_findings WHERE priority='high'"
-        ).fetchone()[0]
-        medium = db.execute(
-            "SELECT COUNT(*) FROM audit_findings WHERE priority='medium'"
-        ).fetchone()[0]
-        low = db.execute(
-            "SELECT COUNT(*) FROM audit_findings WHERE priority='low'"
-        ).fetchone()[0]
+    db = get_db()
 
-        # By status
-        new = db.execute(
-            "SELECT COUNT(*) FROM audit_findings WHERE status='new'"
-        ).fetchone()[0]
-        prev = db.execute(
-            "SELECT COUNT(*) FROM audit_findings WHERE status='previously_identified'"
-        ).fetchone()[0]
-        resolved = db.execute(
-            "SELECT COUNT(*) FROM audit_findings WHERE status='resolved'"
-        ).fetchone()[0]
+    # Finding counts by priority
+    total = db.audit_findings.count_documents({})
+    high = db.audit_findings.count_documents({"priority": "high"})
+    medium = db.audit_findings.count_documents({"priority": "medium"})
+    low = db.audit_findings.count_documents({"priority": "low"})
 
-        # Runs
-        total_runs = db.execute("SELECT COUNT(*) FROM audit_runs").fetchone()[0]
+    # By status
+    new = db.audit_findings.count_documents({"status": "new"})
+    prev = db.audit_findings.count_documents({"status": "previously_identified"})
+    resolved = db.audit_findings.count_documents({"status": "resolved"})
 
-        last_run = None
-        row = db.execute(
-            "SELECT id, started_at, completed_at, total_posts, total_findings, "
-            "total_api_calls, total_tokens FROM audit_runs ORDER BY id DESC LIMIT 1"
-        ).fetchone()
-        if row:
-            last_run = RunOut(
-                id=row[0], started_at=row[1], completed_at=row[2],
-                total_posts=row[3], total_findings=row[4],
-                total_api_calls=row[5], total_tokens=row[6],
-            )
+    # Runs
+    total_runs = db.audit_runs.count_documents({})
 
-        return StatsResponse(
-            total_findings=total, high=high, medium=medium, low=low,
-            new=new, previously_identified=prev, resolved=resolved,
-            total_runs=total_runs, last_run=last_run,
+    last_run = None
+    row = db.audit_runs.find_one(sort=[("id", -1)])
+    if row:
+        last_run = RunOut(
+            id=row["id"],
+            started_at=row.get("started_at"),
+            completed_at=row.get("completed_at"),
+            total_posts=row.get("total_posts", 0),
+            total_findings=row.get("total_findings", 0),
+            total_api_calls=row.get("total_api_calls", 0),
+            total_tokens=row.get("total_tokens", 0),
+            started_by=row.get("started_by"),
+            category=row.get("category"),
         )
-    finally:
-        db.close()
+
+    return StatsResponse(
+        total_findings=total, high=high, medium=medium, low=low,
+        new=new, previously_identified=prev, resolved=resolved,
+        total_runs=total_runs, last_run=last_run,
+    )

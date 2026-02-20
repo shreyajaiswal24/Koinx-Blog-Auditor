@@ -2,11 +2,13 @@
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from api.auth import get_current_user, seed_user
 from api.ws import router as ws_router
+from api.routes.auth import router as auth_router
 from api.routes.audit import router as audit_router
 from api.routes.findings import router as findings_router
 from api.routes.stats import router as stats_router
@@ -26,13 +28,21 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Routes
+    # Public routes (no auth required)
+    app.include_router(auth_router)
+
+    # Protected routes (auth required)
     app.include_router(ws_router)
-    app.include_router(audit_router)
-    app.include_router(findings_router)
-    app.include_router(stats_router)
-    app.include_router(runs_router)
-    app.include_router(reports_router)
+    app.include_router(audit_router, dependencies=[Depends(get_current_user)])
+    app.include_router(findings_router, dependencies=[Depends(get_current_user)])
+    app.include_router(stats_router, dependencies=[Depends(get_current_user)])
+    app.include_router(runs_router, dependencies=[Depends(get_current_user)])
+    app.include_router(reports_router, dependencies=[Depends(get_current_user)])
+
+    # Seed default admin user on startup
+    @app.on_event("startup")
+    def _seed_default_users():
+        seed_user("admin@koinx.com", "admin123", "Admin")
 
     # Serve built frontend in production (if exists)
     dist_dir = Path(__file__).parent.parent / "frontend" / "dist"

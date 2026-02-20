@@ -10,7 +10,11 @@ from api.state import audit_state
 logger = logging.getLogger(__name__)
 
 
-def _run_audit_sync(post_id: Optional[int] = None):
+def _run_audit_sync(
+    post_id: Optional[int] = None,
+    started_by: Optional[str] = None,
+    category: Optional[str] = None,
+):
     """Run the full audit pipeline synchronously (called in executor thread).
 
     Imports are deferred to avoid circular imports and ensure fresh DB connections.
@@ -44,7 +48,9 @@ def _run_audit_sync(post_id: Optional[int] = None):
             return
 
         run_id = tracker.start_run(
-            total_posts=len(set(f["blog_url"] for f in findings))
+            total_posts=len(set(f["blog_url"] for f in findings)),
+            started_by=started_by,
+            category=category,
         )
         classified = tracker.classify_findings(run_id, findings)
 
@@ -67,12 +73,18 @@ def _run_audit_sync(post_id: Optional[int] = None):
         db.close()
 
 
-async def start_audit(post_id: Optional[int] = None):
+async def start_audit(
+    post_id: Optional[int] = None,
+    started_by: Optional[str] = None,
+    category: Optional[str] = None,
+):
     """Launch the audit in a background thread, updating audit_state."""
     audit_state.set_running(True)
     loop = asyncio.get_event_loop()
     try:
-        await loop.run_in_executor(None, _run_audit_sync, post_id)
+        await loop.run_in_executor(
+            None, _run_audit_sync, post_id, started_by, category
+        )
     except Exception as e:
         logger.error(f"Audit failed: {e}")
         audit_state.broadcast({"event": "audit_error", "error": str(e)})

@@ -1,13 +1,15 @@
 import { useAuditWebSocket } from '../hooks/useAuditWebSocket';
-import { fetchAuditStatus, startAudit } from '../api/client';
+import { fetchAuditStatus } from '../api/client';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ProgressBar from '../components/ProgressBar';
 import LiveLog from '../components/LiveLog';
 
 export default function LiveAudit() {
-  const { events, latest, connected, clearEvents } = useAuditWebSocket();
+  const { events, latest, connected } = useAuditWebSocket();
   const [running, setRunning] = useState(false);
   const [findingCount, setFindingCount] = useState(0);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchAuditStatus().then((s) => setRunning(s.running)).catch(() => {});
@@ -33,40 +35,30 @@ export default function LiveAudit() {
   const current = latest?.current ?? 0;
   const total = latest?.total ?? latest?.total_posts ?? 0;
 
-  const handleStart = async () => {
-    clearEvents();
-    setFindingCount(0);
-    try {
-      await startAudit();
-      setRunning(true);
-    } catch {
-      // 409 means already running
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Live Audit</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <span className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
           <span className="text-sm text-gray-500">{connected ? 'Connected' : 'Disconnected'}</span>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={handleStart}
-          disabled={running}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {running ? 'Audit Running...' : 'Start Audit'}
-        </button>
-        {running && (
-          <span className="text-sm text-gray-500 animate-pulse">Processing...</span>
-        )}
-      </div>
+      {!running && (
+        <div>
+          <button
+            onClick={() => navigate('/audits')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+          >
+            Start New Audit
+          </button>
+        </div>
+      )}
+      {running && (
+        <span className="text-sm text-gray-500 animate-pulse">Processing...</span>
+      )}
 
       {/* Progress */}
       {total > 0 && (

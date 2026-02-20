@@ -1,12 +1,73 @@
 const BASE = '';
 
+// --- Auth token management ---
+export function getToken(): string | null {
+  return localStorage.getItem('token');
+}
+
+export function setToken(token: string) {
+  localStorage.setItem('token', token);
+}
+
+export function clearToken() {
+  localStorage.removeItem('token');
+}
+
+export function getStoredUser(): AuthUser | null {
+  const raw = localStorage.getItem('user');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredUser(user: AuthUser) {
+  localStorage.setItem('user', JSON.stringify(user));
+}
+
+export function clearStoredUser() {
+  localStorage.removeItem('user');
+}
+
+// --- HTTP request wrapper ---
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, init);
+  const token = getToken();
+  const headers: Record<string, string> = {
+    ...(init?.headers as Record<string, string> || {}),
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${BASE}${path}`, { ...init, headers });
+
+  if (res.status === 401) {
+    clearToken();
+    clearStoredUser();
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
+
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status}: ${body}`);
   }
   return res.json();
+}
+
+// --- Types ---
+export interface AuthUser {
+  id: number;
+  email: string;
+  name: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  user: AuthUser;
 }
 
 export interface Finding {
@@ -43,6 +104,8 @@ export interface Run {
   total_findings: number;
   total_api_calls: number;
   total_tokens: number;
+  started_by: string | null;
+  category: string | null;
 }
 
 export interface Stats {
@@ -62,6 +125,16 @@ export interface AuditStatus {
   progress: Record<string, unknown> | null;
 }
 
+// --- Auth API ---
+export function login(email: string, password: string) {
+  return request<LoginResponse>('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+// --- Data API ---
 export function fetchStats() {
   return request<Stats>('/api/stats');
 }
@@ -79,11 +152,11 @@ export function fetchAuditStatus() {
   return request<AuditStatus>('/api/audit/status');
 }
 
-export function startAudit(postId?: number) {
+export function startAudit(category: string, postId?: number) {
   return request<{ message: string; status: string }>('/api/audit/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ post_id: postId ?? null }),
+    body: JSON.stringify({ post_id: postId ?? null, category }),
   });
 }
 

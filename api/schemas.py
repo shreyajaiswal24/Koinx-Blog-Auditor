@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 class AuditStartRequest(BaseModel):
     post_id: Optional[int] = None
+    category: str = "US Taxes"
 
 
 class AuditStartResponse(BaseModel):
@@ -52,6 +53,8 @@ class RunOut(BaseModel):
     total_findings: int
     total_api_calls: int
     total_tokens: int
+    started_by: Optional[str] = None
+    category: Optional[str] = None
 
 
 class StatsResponse(BaseModel):

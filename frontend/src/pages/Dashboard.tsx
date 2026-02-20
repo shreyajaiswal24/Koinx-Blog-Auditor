@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react';
 import { fetchStats, fetchAuditStatus, type Stats } from '../api/client';
 import StatsCards from '../components/StatsCards';
 import AuditControls from '../components/AuditControls';
-import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [running, setRunning] = useState(false);
-  const navigate = useNavigate();
 
   const load = () => {
     fetchStats().then(setStats).catch(() => {});
@@ -24,13 +22,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <AuditControls
-          isRunning={running}
-          onStarted={() => {
-            setRunning(true);
-            navigate('/live');
-          }}
-        />
+        <AuditControls isRunning={running} />
       </div>
 
       {stats ? (
