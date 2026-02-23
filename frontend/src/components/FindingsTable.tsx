@@ -1,10 +1,63 @@
 import { useState } from 'react';
 import type { Finding } from '../api/client';
+import { updateFindingStatus } from '../api/client';
 import PriorityBadge from './PriorityBadge';
 import StatusBadge from './StatusBadge';
 
-export default function FindingsTable({ findings }: { findings: Finding[] }) {
+interface Props {
+  findings: Finding[];
+  onStatusChange?: () => void;
+}
+
+function SourceLink({ source }: { source: string }) {
+  if (!source) return <span className="text-gray-400">—</span>;
+
+  // If it's already a URL, link directly
+  if (source.startsWith('http')) {
+    return (
+      <a
+        href={source}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 hover:underline font-medium"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {source}
+      </a>
+    );
+  }
+
+  // For IRS references like "Rev. Rul. 2023-14", "IRC §1091", "Notice 2014-21", etc.
+  // Link to a Google search so the user can find the original source
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(source + ' IRS site:irs.gov')}`;
+  return (
+    <a
+      href={searchUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-600 hover:underline font-medium"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {source}
+    </a>
+  );
+}
+
+export default function FindingsTable({ findings, onStatusChange }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [updating, setUpdating] = useState<number | null>(null);
+
+  const handleStatusChange = async (findingId: number, newStatus: string) => {
+    setUpdating(findingId);
+    try {
+      await updateFindingStatus(findingId, newStatus);
+      onStatusChange?.();
+    } catch {
+      // ignore
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   return (
     <div className="overflow-x-auto">
@@ -59,9 +112,43 @@ export default function FindingsTable({ findings }: { findings: Finding[] }) {
                       <div className="font-semibold text-gray-700 text-xs uppercase mb-1">Description</div>
                       <div className="text-gray-600 text-sm">{f.description}</div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      Source: {f.source} | LLM Confidence: {(f.llm_confidence * 100).toFixed(0)}%
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span>Source:</span>
+                      <SourceLink source={f.source} />
+                      <span>| LLM Confidence: {(f.llm_confidence * 100).toFixed(0)}%</span>
                     </div>
+
+                    {/* Action buttons */}
+                    {f.status !== 'completed' && f.status !== 'ignored' && (
+                      <div className="flex gap-2 pt-2 border-t border-blue-100">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStatusChange(f.id, 'completed'); }}
+                          disabled={updating === f.id}
+                          className="px-4 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 disabled:opacity-50 transition-colors"
+                        >
+                          {updating === f.id ? 'Updating...' : 'Mark Completed'}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStatusChange(f.id, 'ignored'); }}
+                          disabled={updating === f.id}
+                          className="px-4 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                        >
+                          {updating === f.id ? 'Updating...' : 'Ignore'}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Already actioned */}
+                    {f.status === 'completed' && (
+                      <div className="text-xs text-green-600 font-medium pt-2 border-t border-blue-100">
+                        Marked as completed
+                      </div>
+                    )}
+                    {f.status === 'ignored' && (
+                      <div className="text-xs text-gray-500 font-medium pt-2 border-t border-blue-100">
+                        Ignored
+                      </div>
+                    )}
                   </td>
                 </tr>
               )}

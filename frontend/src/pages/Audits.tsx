@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchRuns, startAudit, fetchAuditStatus, type Run } from '../api/client';
+import { fetchRuns, startAudit, type Run } from '../api/client';
 import { useNavigate } from 'react-router-dom';
 
 const CATEGORY_OPTIONS = ['US Taxes', 'Canada Taxes'];
@@ -13,13 +13,29 @@ function formatDuration(start: number | null, end: number | null): string {
   return `${mins}m ${rem}s`;
 }
 
+function RunStatusBadge({ status }: { status: string | null }) {
+  if (!status) return <span className="text-gray-400">—</span>;
+
+  const styles: Record<string, string> = {
+    started: 'bg-yellow-100 text-yellow-800',
+    completed: 'bg-green-100 text-green-800',
+    failed: 'bg-red-100 text-red-800',
+  };
+
+  return (
+    <span className={`inline-block px-2.5 py-0.5 text-xs font-medium rounded-full ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </span>
+  );
+}
+
 export default function Audits() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [category, setCategory] = useState(CATEGORY_OPTIONS[0]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [isRunning, setIsRunning] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
   const navigate = useNavigate();
 
   const loadRuns = () => {
@@ -28,21 +44,39 @@ export default function Audits() {
 
   useEffect(() => {
     loadRuns();
-    fetchAuditStatus().then((s) => setIsRunning(s.running)).catch(() => {});
+    // Poll every 5s to update statuses
+    const id = setInterval(loadRuns, 5000);
+    return () => clearInterval(id);
   }, []);
 
   const handleStartAudit = async () => {
     setSubmitting(true);
     setError('');
+    setSuccessMsg('');
     try {
       await startAudit(category);
       setShowModal(false);
-      setIsRunning(true);
-      navigate('/live');
+      setSuccessMsg(`Audit Started for "${category}"`);
+      loadRuns();
+      // Clear success message after 4 seconds
+      setTimeout(() => setSuccessMsg(''), 4000);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to start audit');
+      const msg = e instanceof Error ? e.message : 'Failed to start audit';
+      // Extract detail from JSON error response if present
+      try {
+        const parsed = JSON.parse(msg.split(': ').slice(1).join(': '));
+        setError(parsed.detail || msg);
+      } catch {
+        setError(msg);
+      }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRowClick = (run: Run) => {
+    if (run.status === 'started') {
+      navigate('/live');
     }
   };
 
@@ -52,13 +86,19 @@ export default function Audits() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Audits</h1>
         <button
-          onClick={() => setShowModal(true)}
-          disabled={isRunning}
-          className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          onClick={() => { setShowModal(true); setError(''); setSuccessMsg(''); }}
+          className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
         >
-          {isRunning ? 'Audit Running...' : 'Start Audit'}
+          Start Audit
         </button>
       </div>
+
+      {/* Success message */}
+      {successMsg && (
+        <div className="bg-green-50 text-green-700 text-sm px-4 py-3 rounded-lg border border-green-200">
+          {successMsg}
+        </div>
+      )}
 
       {/* Run history table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -66,20 +106,27 @@ export default function Audits() {
           <thead>
             <tr className="bg-gray-100 text-left text-gray-600 uppercase text-xs">
               <th className="px-4 py-3">Run #</th>
+              <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Category</th>
               <th className="px-4 py-3">Started By</th>
               <th className="px-4 py-3">Started</th>
               <th className="px-4 py-3">Duration</th>
               <th className="px-4 py-3">Posts</th>
               <th className="px-4 py-3">Findings</th>
-              <th className="px-4 py-3">API Calls</th>
-              <th className="px-4 py-3">Tokens</th>
+              <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
             {runs.map((r) => (
-              <tr key={r.id} className="border-b hover:bg-gray-50">
+              <tr
+                key={r.id}
+                className={`border-b hover:bg-gray-50 ${r.status === 'started' ? 'cursor-pointer' : ''}`}
+                onClick={() => handleRowClick(r)}
+              >
                 <td className="px-4 py-3 font-medium">#{r.id}</td>
+                <td className="px-4 py-3">
+                  <RunStatusBadge status={r.status} />
+                </td>
                 <td className="px-4 py-3">
                   {r.category ? (
                     <span className="inline-block px-2.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">
@@ -94,12 +141,35 @@ export default function Audits() {
                   {r.started_at ? new Date(r.started_at * 1000).toLocaleString() : '—'}
                 </td>
                 <td className="px-4 py-3 text-gray-600">
-                  {formatDuration(r.started_at, r.completed_at)}
+                  {r.status === 'started' ? (
+                    <span className="text-yellow-600 animate-pulse">In progress...</span>
+                  ) : (
+                    formatDuration(r.started_at, r.completed_at)
+                  )}
                 </td>
                 <td className="px-4 py-3">{r.total_posts}</td>
                 <td className="px-4 py-3 font-semibold">{r.total_findings}</td>
-                <td className="px-4 py-3 text-gray-600">{r.total_api_calls}</td>
-                <td className="px-4 py-3 text-gray-600">{r.total_tokens.toLocaleString()}</td>
+                <td className="px-4 py-3">
+                  {r.status === 'started' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate('/live'); }}
+                      className="px-3 py-1 text-xs font-medium text-yellow-700 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors"
+                    >
+                      View Live
+                    </button>
+                  )}
+                  {r.status === 'completed' && r.total_findings > 0 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate(`/findings?run_id=${r.id}`); }}
+                      className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                      Show Findings
+                    </button>
+                  )}
+                  {r.status === 'failed' && (
+                    <span className="text-xs text-red-500">Failed</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

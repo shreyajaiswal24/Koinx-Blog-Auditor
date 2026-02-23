@@ -106,6 +106,7 @@ export interface Run {
   total_tokens: number;
   started_by: string | null;
   category: string | null;
+  status: string | null;
 }
 
 export interface Stats {
@@ -153,10 +154,18 @@ export function fetchAuditStatus() {
 }
 
 export function startAudit(category: string, postId?: number) {
-  return request<{ message: string; status: string }>('/api/audit/start', {
+  return request<{ message: string; status: string; run_id: number }>('/api/audit/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ post_id: postId ?? null, category }),
+  });
+}
+
+export function updateFindingStatus(findingId: number, status: string) {
+  return request<{ message: string; id: number; status: string }>(`/api/findings/${findingId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
   });
 }
 

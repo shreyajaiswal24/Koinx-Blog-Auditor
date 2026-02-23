@@ -39,6 +39,7 @@ def get_stats():
             total_tokens=row.get("total_tokens", 0),
             started_by=row.get("started_by"),
             category=row.get("category"),
+            status=row.get("status"),
         )
 
     return StatsResponse(

@@ -25,6 +25,7 @@ def get_runs():
             total_tokens=d.get("total_tokens", 0),
             started_by=d.get("started_by"),
             category=d.get("category"),
+            status=d.get("status"),
         )
         for d in docs
     ]

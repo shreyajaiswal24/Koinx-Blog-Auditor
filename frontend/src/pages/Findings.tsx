@@ -1,25 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { fetchFindings, type PaginatedFindings } from '../api/client';
 import FindingsTable from '../components/FindingsTable';
 
 export default function Findings() {
+  const [searchParams] = useSearchParams();
+  const runIdParam = searchParams.get('run_id');
+
   const [data, setData] = useState<PaginatedFindings | null>(null);
   const [page, setPage] = useState(1);
   const [priority, setPriority] = useState('');
   const [status, setStatus] = useState('');
   const [issueType, setIssueType] = useState('');
 
-  useEffect(() => {
+  const loadFindings = useCallback(() => {
     const params: Record<string, string> = { page: String(page), per_page: '20' };
     if (priority) params.priority = priority;
     if (status) params.status = status;
     if (issueType) params.issue_type = issueType;
+    if (runIdParam) params.run_id = runIdParam;
     fetchFindings(params).then(setData).catch(() => {});
-  }, [page, priority, status, issueType]);
+  }, [page, priority, status, issueType, runIdParam]);
+
+  useEffect(() => {
+    loadFindings();
+  }, [loadFindings]);
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gray-800">Findings</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-bold text-gray-800">Findings</h1>
+        {runIdParam && (
+          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-sm font-medium rounded-full">
+            Audit #{runIdParam}
+          </span>
+        )}
+      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
@@ -43,6 +59,8 @@ export default function Findings() {
           <option value="new">New</option>
           <option value="previously_identified">Recurring</option>
           <option value="resolved">Resolved</option>
+          <option value="completed">Completed</option>
+          <option value="ignored">Ignored</option>
         </select>
 
         <select
@@ -68,7 +86,7 @@ export default function Findings() {
       {/* Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {data ? (
-          <FindingsTable findings={data.items} />
+          <FindingsTable findings={data.items} onStatusChange={loadFindings} />
         ) : (
           <div className="text-center py-12 text-gray-400">Loading...</div>
         )}

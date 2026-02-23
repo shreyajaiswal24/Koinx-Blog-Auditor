@@ -31,6 +31,7 @@ class ChangeTracker:
             "total_tokens": 0,
             "started_by": started_by,
             "category": category,
+            "status": "started",
         })
         logger.info(f"Started audit run #{run_id}")
         return run_id
@@ -45,6 +46,7 @@ class ChangeTracker:
                 "total_findings": total_findings,
                 "total_api_calls": api_stats.get("total_requests", 0),
                 "total_tokens": api_stats.get("total_tokens", 0),
+                "status": "completed",
             }},
         )
         logger.info(f"Completed audit run #{run_id}: {total_findings} findings")

@@ -12,6 +12,7 @@ class AuditStartRequest(BaseModel):
 class AuditStartResponse(BaseModel):
     message: str
     status: str
+    run_id: Optional[int] = None
 
 
 class AuditStatusResponse(BaseModel):
@@ -55,6 +56,7 @@ class RunOut(BaseModel):
     total_tokens: int
     started_by: Optional[str] = None
     category: Optional[str] = None
+    status: Optional[str] = None
 
 
 class StatsResponse(BaseModel):
